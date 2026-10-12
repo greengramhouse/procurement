@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบพัสดุ โรงเรียนชุมชนวัดไทยงาม (ตัวอย่างหน้าจอ)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  if (window.tailwind) tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Sarabun', 'sans-serif'] },
+        colors: { brand: { 50:'#eef6ff',100:'#d9eaff',500:'#2563eb',600:'#1d4ed8',700:'#1e40af',900:'#172554' } }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-size: 15px; }
+  .nav-item.active { background:#eef6ff; color:#1d4ed8; font-weight:600; }
+  .nav-item.active svg { color:#1d4ed8; }
+  .tab-btn.active { border-color:#1d4ed8; color:#1d4ed8; font-weight:600; }
+  .scroll-thin::-webkit-scrollbar { width:6px; height:6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+
+<div class="flex min-h-screen">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-72 -translate-x-full transform border-r border-slate-200 bg-white transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0">
+    <div class="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
+      <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-lg font-bold text-white">ทง</div>
+      <div class="leading-tight">
+        <div class="font-semibold">ระบบงานพัสดุ</div>
+        <div class="text-xs text-slate-500">โรงเรียนชุมชนวัดไทยงาม</div>
+      </div>
+    </div>
+    <div class="border-b border-slate-200 px-5 py-3">
+      <label class="mb-1 block text-xs font-medium text-slate-500">สลับบทบาท (เพื่อดูสิทธิ์เมนู)</label>
+      <select id="roleSelect" class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none">
+        <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+        <option value="supply">เจ้าหน้าที่พัสดุ</option>
+        <option value="teacher">ครู</option>
+        <option value="director">ผู้อำนวยการ (แนะนำเพิ่ม)</option>
+        <option value="finance">การเงิน (แนะนำเพิ่ม)</option>
+      </select>
+    </div>
+    <nav id="nav" class="scroll-thin h-[calc(100vh-9.5rem)] overflow-y-auto px-3 py-3"></nav>
+  </aside>
+  <div id="overlay" class="fixed inset-0 z-30 hidden bg-black/30 lg:hidden"></div>
+
+  <!-- Main -->
+  <div class="flex min-w-0 flex-1 flex-col">
+    <header class="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur lg:px-8">
+      <button id="menuBtn" class="rounded-md p-2 hover:bg-slate-100 lg:hidden" aria-label="เปิดเมนู">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="min-w-0 flex-1">
+        <div id="crumb" class="truncate text-xs text-slate-500"></div>
+        <h1 id="pageTitle" class="truncate text-lg font-semibold"></h1>
+      </div>
+      <div class="hidden items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-700 sm:flex">ตัวอย่างหน้าจอ · ข้อมูลสมมติ</div>
+      <button class="relative rounded-full p-2 hover:bg-slate-100" aria-label="การแจ้งเตือน" onclick="go('mytasks')">
+        <svg class="h-6 w-6 text-slate-600" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0"/></svg>
+        <span class="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500"></span>
+      </button>
+      <div class="flex items-center gap-2">
+        <div id="avatar" class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700"></div>
+        <div class="hidden leading-tight md:block">
+          <div id="userName" class="text-sm font-medium"></div>
+          <div id="userRole" class="text-xs text-slate-500"></div>
+        </div>
+      </div>
+    </header>
+
+    <main id="page" class="flex-1 p-4 lg:p-8"></main>
+  </div>
+</div>
+
+<div id="toast" class="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white opacity-0 transition-opacity"></div>
+
+<script>
+// ---------- ข้อมูลสมมติ ----------
+const ROLES = {
+  admin:    { label:'ผู้ดูแลระบบ', user:'นายธนพล ใจงาม' },
+  supply:   { label:'เจ้าหน้าที่พัสดุ', user:'นางสาวพิมพ์ชนก แก้วดี' },
+  teacher:  { label:'ครู', user:'นางวิไลวรรณ ศรีสุข' },
+  director: { label:'ผู้อำนวยการ', user:'นายสมชาย รักเรียน' },
+  finance:  { label:'การเงิน', user:'นางสุนิสา มั่นคง' },
+};
+const ALL = ['admin','supply','teacher','director','finance'];
+
+const ICONS = {
+  home:'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10',
+  inbox:'M4 4h16v12H4zM4 16l3 4h10l3-4M8 10h8',
+  calendar:'M7 3v3M17 3v3M4 8h16M5 5h14v15H5z',
+  pen:'M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4',
+  list:'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+  check:'M9 12l2 2 4-4M5 4h14v16H5z',
+  doc:'M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6',
+  wallet:'M3 7h18v12H3zM16 13h2M3 7l3-3h12l3 3',
+  lock:'M6 11h12v9H6zM9 11V8a3 3 0 016 0v3',
+  store:'M4 9l2-5h12l2 5M4 9h16v11H4zM9 20v-6h6v6',
+  box:'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
+  stack:'M4 7h16M4 12h16M4 17h16',
+  search:'M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-5-5',
+  chart:'M4 20V10M10 20V4M16 20v-8M22 20H2',
+  printer:'M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z',
+  pie:'M12 3v9h9a9 9 0 11-9-9zM15 3a6 6 0 016 6h-6z',
+  users:'M9 11a4 4 0 100-8 4 4 0 000 8zM3 21v-2a5 5 0 0110 0v2M17 11a3 3 0 100-6M21 21v-2a4 4 0 00-3-3.9',
+  school:'M3 10l9-6 9 6M5 10v9h14v-9M10 19v-5h4v5',
+  sliders:'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4',
+  template:'M4 4h16v6H4zM4 14h7v6H4zM15 14h5v6h-5z',
+  shield:'M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z',
+};
+
+const MENU = [
+  { group:'ภาพรวม', items:[
+    { id:'dashboard', label:'แดชบอร์ด', icon:'home', roles:ALL },
+    { id:'mytasks', label:'งานของฉัน', icon:'inbox', roles:ALL, badge:4 },
+  ]},
+  { group:'งานจัดซื้อจัดจ้าง', items:[
+    { id:'plan', label:'แผนจัดซื้อจัดจ้างประจำปี', icon:'calendar', roles:['admin','supply','director'] },
+    { id:'request', label:'บันทึกขอซื้อ/ขอจ้าง', icon:'pen', roles:['admin','supply','teacher'] },
+    { id:'register', label:'ทะเบียนเรื่องจัดซื้อจัดจ้าง', icon:'list', roles:ALL },
+    { id:'inspect', label:'ตรวจรับพัสดุ', icon:'check', roles:['admin','supply','teacher'], badge:2 },
+    { id:'contract', label:'ใบสั่งซื้อ/สัญญา/หลักประกัน', icon:'doc', roles:['admin','supply','director','finance'] },
+  ]},
+  { group:'งบประมาณ', items:[
+    { id:'funds', label:'แหล่งเงินและโครงการ', icon:'wallet', roles:['admin','supply','director','finance'] },
+    { id:'commit', label:'การกันเงิน/ผูกพันงบ', icon:'lock', roles:['admin','supply','director','finance'] },
+  ]},
+  { group:'ทะเบียน', items:[
+    { id:'vendors', label:'ผู้ขาย/ผู้รับจ้าง', icon:'store', roles:['admin','supply','director','finance'] },
+    { id:'assets', label:'ทะเบียนครุภัณฑ์', icon:'box', roles:ALL },
+    { id:'stock', label:'วัสดุคงคลัง/ใบเบิก', icon:'stack', roles:ALL },
+    { id:'annual', label:'ตรวจสอบพัสดุประจำปี', icon:'search', roles:['admin','supply','director'] },
+  ]},
+  { group:'รายงาน', items:[
+    { id:'rpt-summary', label:'สรุปผล (สขร.1/ไตรมาส/ปี)', icon:'chart', roles:['admin','supply','director','finance'] },
+    { id:'rpt-case', label:'พิมพ์เอกสารรายเรื่อง', icon:'printer', roles:['admin','supply','teacher','director'] },
+    { id:'rpt-analytics', label:'รายงานวิเคราะห์การใช้งบ', icon:'pie', roles:['admin','supply','director','finance'] },
+  ]},
+  { group:'ตั้งค่า', items:[
+    { id:'users', label:'ผู้ใช้และบทบาท', icon:'users', roles:['admin'] },
+    { id:'school', label:'ข้อมูลโรงเรียน/ผู้ลงนาม', icon:'school', roles:['admin','director'] },
+    { id:'thresholds', label:'เกณฑ์วงเงินและระเบียบ', icon:'sliders', roles:['admin'] },
+    { id:'templates', label:'แม่แบบเอกสาร/เลขที่', icon:'template', roles:['admin'] },
+    { id:'audit', label:'บันทึกการใช้งาน', icon:'shield', roles:['admin','director'] },
+  ]},
+];
+
+const STATUS = {
+  DRAFT:['ร่าง','bg-slate-100 text-slate-600'],
+  REQUESTED:['ส่งขอซื้อแล้ว','bg-sky-100 text-sky-700'],
+  REPORT:['จัดทำรายงานแล้ว','bg-indigo-100 text-indigo-700'],
+  APPROVED:['ผอ. เห็นชอบ','bg-violet-100 text-violet-700'],
+  QUOTING:['กำลังจัดหา','bg-amber-100 text-amber-700'],
+  AWARDED:['ประกาศผู้ชนะ','bg-amber-100 text-amber-800'],
+  ORDERED:['สั่งซื้อ/จ้างแล้ว','bg-orange-100 text-orange-700'],
+  DELIVERED:['ส่งของแล้ว','bg-teal-100 text-teal-700'],
+  INSPECTED:['ตรวจรับแล้ว','bg-emerald-100 text-emerald-700'],
+  PAID:['เบิกจ่ายแล้ว','bg-green-100 text-green-700'],
+  CLOSED:['ปิดเรื่อง','bg-slate-200 text-slate-700'],
+  CANCELLED:['ยกเลิก','bg-red-100 text-red-700'],
+};
+const FLOW = ['REQUESTED','REPORT','APPROVED','QUOTING','AWARDED','ORDERED','DELIVERED','INSPECTED','PAID','CLOSED'];
+
+const FUNDS = [
+  { name:'เงินอุดหนุนรายหัว', budget:820000, used:612340 },
+  { name:'เรียนฟรี 15 ปี – ค่าหนังสือเรียน', budget:310000, used:298500 },
+  { name:'เรียนฟรี 15 ปี – อุปกรณ์การเรียน', budget:145000, used:139500 },
+  { name:'เรียนฟรี 15 ปี – กิจกรรมพัฒนาผู้เรียน', budget:255000, used:176000 },
+  { name:'งบลงทุน (ปรับปรุงซ่อมแซม)', budget:500000, used:186000 },
+  { name:'เงินรายได้สถานศึกษา', budget:420000, used:200000 },
+];
+const MONTHS = ['ต.ค.','พ.ย.','ธ.ค.','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.'];
+const MONTHLY = [45200,98350,156800,72400,210500,88900,65300,312600,186000,142290,168000,66000];
+
+const PROCS = [
+  { no:'พด.001/2570', title:'จัดซื้อวัสดุสำนักงาน ภาคเรียนที่ 2', type:'ซื้อ', method:'เฉพาะเจาะจง (ไม่เกิน 50,000)', amount:24800, fund:'เงินอุดหนุนรายหัว', status:'REQUESTED', req:'นางวิไลวรรณ ศรีสุข', date:'8 ต.ค. 2569', egp:'' },
+  { no:'พด.064/2569', title:'จ้างซ่อมแซมหลังคาอาคารเรียน 2', type:'จ้าง', method:'เฉพาะเจาะจง', amount:186000, fund:'งบลงทุน (ปรับปรุงซ่อมแซม)', status:'INSPECTED', req:'นายประเสริฐ ทองดี', date:'2 ก.ย. 2569', egp:'69089012345' },
+  { no:'พด.063/2569', title:'จัดซื้อหนังสือเรียน ภาคเรียนที่ 2', type:'ซื้อ', method:'เฉพาะเจาะจง', amount:298500, fund:'เรียนฟรี 15 ปี – ค่าหนังสือเรียน', status:'PAID', req:'นางสาวพิมพ์ชนก แก้วดี', date:'20 ส.ค. 2569', egp:'69087054321' },
+  { no:'พด.062/2569', title:'จัดซื้อวัสดุคอมพิวเตอร์ (หมึกพิมพ์ เมาส์)', type:'ซื้อ', method:'เฉพาะเจาะจง (ไม่เกิน 50,000)', amount:32400, fund:'เงินอุดหนุนรายหัว', status:'ORDERED', req:'นายอนุชา พรมมา', date:'15 ส.ค. 2569', egp:'' },
+  { no:'พด.061/2569', title:'จัดซื้ออุปกรณ์กีฬา', type:'ซื้อ', method:'เฉพาะเจาะจง (ไม่เกิน 50,000)', amount:18600, fund:'เงินอุดหนุนรายหัว', status:'APPROVED', req:'นายกิตติ แสงทอง', date:'12 ส.ค. 2569', egp:'' },
+  { no:'พด.060/2569', title:'จ้างเหมารถรับส่งนักเรียนทัศนศึกษา', type:'จ้าง', method:'เฉพาะเจาะจง (ไม่เกิน 50,000)', amount:45000, fund:'เรียนฟรี 15 ปี – กิจกรรมพัฒนาผู้เรียน', status:'CLOSED', req:'นางวิไลวรรณ ศรีสุข', date:'1 ส.ค. 2569', egp:'' },
+  { no:'พด.059/2569', title:'จ้างถ่ายเอกสารข้อสอบปลายภาค', type:'จ้าง', method:'เฉพาะเจาะจง (ไม่เกิน 50,000)', amount:9800, fund:'เงินอุดหนุนรายหัว', status:'CLOSED', req:'นายอนุชา พรมมา', date:'25 ก.ค. 2569', egp:'' },
+  { no:'พด.058/2569', title:'จัดซื้อวัสดุงานบ้านงานครัว', type:'ซื้อ', method:'เฉพาะเจาะจง (ไม่เกิน 50,000)', amount:12350, fund:'เงินรายได้สถานศึกษา', status:'CANCELLED', req:'นางสุนิสา มั่นคง', date:'20 ก.ค. 2569', egp:'' },
+];
+
+// ---------- helpers ----------
+const fmt = n => Number(n).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const baht = n => '฿' + fmt(n);
+const icon = (name, cls='h-5 w-5') => `<svg class="${cls}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="${ICONS[name]}"/></svg>`;
+const badge = s => `<span class="inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS[s][1]}">${STATUS[s][0]}</span>`;
+const card = (inner, cls='') => `<div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${cls}">${inner}</div>`;
+const h2 = (t, right='') => `<div class="mb-4 flex items-center justify-between gap-3"><h2 class="font-semibold">${t}</h2>${right}</div>`;
+const btn = (t, cls='bg-brand-600 text-white hover:bg-brand-700', attr='') => `<button ${attr} class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium ${cls}">${t}</button>`;
+const btnGhost = (t, attr='') => btn(t, 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50', attr);
+const input = (label, val='', type='text', extra='') => `<label class="block"><span class="mb-1 block text-sm text-slate-600">${label}</span><input type="${type}" value="${val}" ${extra} class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"></label>`;
+const select = (label, opts, extra='') => `<label class="block"><span class="mb-1 block text-sm text-slate-600">${label}</span><select ${extra} class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none">${opts.map(o=>`<option>${o}</option>`).join('')}</select></label>`;
+const table = (heads, rows, rowAttr = () => '') => `
+  <div class="scroll-thin overflow-x-auto"><table class="w-full min-w-[640px] text-sm">
+    <thead><tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">${heads.map(h=>`<th class="whitespace-nowrap px-3 py-2.5 font-medium">${h}</th>`).join('')}</tr></thead>
+    <tbody class="divide-y divide-slate-100">${rows.map((r,i)=>`<tr ${rowAttr(i)} class="hover:bg-slate-50">${r.map(c=>`<td class="px-3 py-2.5 align-top">${c}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>`;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.opacity=1; clearTimeout(t._h); t._h=setTimeout(()=>t.style.opacity=0,2200); }
+
+// จำนวนเงินเป็นตัวอักษรไทย
+function bahtText(num){
+  const d=['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'], p=['','สิบ','ร้อย','พัน','หมื่น','แสน'];
+  const readGroup = s => { s=String(Number(s)); if(s==='0') return ''; let out=''; const L=s.length;
+    for(let i=0;i<L;i++){ const n=+s[i], pos=L-1-i; if(n===0) continue;
+      if(pos===1&&n===1) out+='สิบ'; else if(pos===1&&n===2) out+='ยี่สิบ';
+      else if(pos===0&&n===1&&L>1) out+='เอ็ด'; else out+=d[n]+p[pos]; }
+    return out; };
+  const readInt = s => { if(Number(s)===0) return 'ศูนย์'; const groups=[]; while(s.length>6){ groups.unshift(s.slice(-6)); s=s.slice(0,-6);} groups.unshift(s);
+    return groups.map(g=>readGroup(g)).join('ล้าน').replace(/ล้าน$/, 'ล้าน'); };
+  const [i, f=''] = Number(num).toFixed(2).split('.');
+  const sat = Number(f);
+  return readInt(i) + 'บาท' + (sat ? readGroup(String(sat)) + 'สตางค์' : 'ถ้วน');
+}
+
+// ---------- pages ----------
+let role = 'admin';
+const PAGES = {};
+
+PAGES.dashboard = () => {
+  const budget = FUNDS.reduce((a,f)=>a+f.budget,0), used = FUNDS.reduce((a,f)=>a+f.used,0), left = budget-used;
+  const max = Math.max(...MONTHLY);
+  const teacher = role==='teacher';
+  const kpis = teacher ? [
+    ['เรื่องที่ฉันขอ (ปีนี้)','7 เรื่อง','ปิดแล้ว 5 · กำลังดำเนินการ 2','text-brand-700'],
+    ['รอฉันตรวจรับ','1 เรื่อง','พด.062/2569 ครบกำหนดส่ง 15 ต.ค.','text-amber-600'],
+    ['มูลค่าที่ขอรวม','฿148,200','จาก 3 แหล่งเงิน','text-slate-800'],
+    ['วัสดุที่เบิกเดือนนี้','6 รายการ','อนุมัติแล้วทั้งหมด','text-emerald-600'],
+  ] : [
+    ['งบประมาณรวม (ปีงบ 2569)', baht(budget), `${FUNDS.length} แหล่งเงิน`,'text-slate-800'],
+    ['ใช้ไป/ผูกพันแล้ว', baht(used), `${(used/budget*100).toFixed(1)}% ของงบรวม`,'text-brand-700'],
+    ['คงเหลือ', baht(left), 'ใช้ได้ทันที','text-emerald-600'],
+    ['เรื่องจัดซื้อจัดจ้าง','64 เรื่อง','ปิดแล้ว 55 · ยกเลิก 1 · ค้าง 8','text-amber-600'],
+  ];
+  const pipe = [['รอ ผอ. เห็นชอบ',3,'violet'],['กำลังจัดหา',2,'amber'],['รอส่งของ',1,'orange'],['รอตรวจรับ',1,'teal'],['รอเบิกจ่าย',1,'emerald']];
+  return `
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <p class="text-sm text-slate-500">สวัสดี ${ROLES[role].user} · ${teacher ? 'มุมมองครู: เห็นเฉพาะเรื่องของตนเอง' : 'ข้อมูลทั้งโรงเรียน'}</p>
+    <div class="flex gap-2">
+      <select class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option>ปีงบประมาณ 2569</option><option>ปีงบประมาณ 2570</option></select>
+      ${role!=='director'&&role!=='finance' ? btn('+ บันทึกขอซื้อ/ขอจ้าง','bg-brand-600 text-white hover:bg-brand-700',`onclick="go('request')"`) : ''}
+    </div>
+  </div>
+  <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    ${kpis.map(k=>card(`<div class="text-sm text-slate-500">${k[0]}</div><div class="mt-1 text-2xl font-bold ${k[3]}">${k[1]}</div><div class="mt-1 text-xs text-slate-500">${k[2]}</div>`)).join('')}
+  </div>
+
+  <div class="mt-4 grid gap-4 xl:grid-cols-3">
+    ${card(`${h2('การใช้จ่ายรายเดือน (บาท)', '<span class="text-xs text-slate-500">ต.ค. 2568 – ก.ย. 2569</span>')}
+      <div class="flex h-56 items-end gap-2">
+        ${MONTHLY.map((v,i)=>`<div class="group flex flex-1 flex-col items-center gap-1">
+          <div class="text-[10px] text-slate-500 opacity-0 group-hover:opacity-100">${fmt(v)}</div>
+          <div class="w-full rounded-t-md bg-brand-500/80 group-hover:bg-brand-600" style="height:${(v/max*180).toFixed(0)}px"></div>
+          <div class="text-xs text-slate-500">${MONTHS[i]}</div></div>`).join('')}
+      </div>`, 'xl:col-span-2')}
+    ${card(`${h2('สถานะเรื่องที่ค้าง')}
+      <div class="space-y-3">${pipe.map(p=>`<button onclick="go('register')" class="flex w-full items-center justify-between rounded-lg border border-slate-100 px-3 py-2.5 hover:bg-slate-50">
+        <span class="flex items-center gap-2 text-sm"><span class="h-2.5 w-2.5 rounded-full bg-${p[2]}-500"></span>${p[0]}</span><span class="font-semibold">${p[1]}</span></button>`).join('')}</div>`)}
+  </div>
+
+  <div class="mt-4 grid gap-4 xl:grid-cols-3">
+    ${card(`${h2('งบตามแหล่งเงิน', `<button onclick="go('funds')" class="text-sm text-brand-600 hover:underline">ดูทั้งหมด</button>`)}
+      <div class="space-y-4">${FUNDS.map(f=>{ const pct=f.used/f.budget*100; const c = pct>95?'bg-red-500':pct>80?'bg-amber-500':'bg-brand-500';
+        return `<div><div class="mb-1 flex justify-between gap-2 text-sm"><span class="truncate">${f.name}</span><span class="whitespace-nowrap text-slate-500">${fmt(f.used)} / ${fmt(f.budget)}</span></div>
+        <div class="h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full ${c}" style="width:${pct.toFixed(1)}%"></div></div></div>`}).join('')}</div>`, 'xl:col-span-2')}
+    ${card(`${h2('การแจ้งเตือน')}
+      <ul class="space-y-3 text-sm">
+        <li class="rounded-lg border-l-4 border-red-500 bg-red-50 p-3"><div class="font-medium text-red-700">เสี่ยงแบ่งซื้อ</div><div class="text-red-700/80">วัสดุคอมพิวเตอร์ 3 ครั้งใน 30 วัน รวม ฿96,200</div></li>
+        <li class="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-3"><div class="font-medium text-amber-700">ครบกำหนดส่งของ</div><div class="text-amber-700/80">พด.062/2569 ครบกำหนด 15 ต.ค. 2569</div></li>
+        <li class="rounded-lg border-l-4 border-sky-500 bg-sky-50 p-3"><div class="font-medium text-sky-700">ยังไม่กรอกเลข e-GP</div><div class="text-sky-700/80">2 เรื่องที่วงเงินเกิน 50,000 บาท</div></li>
+        <li class="rounded-lg border-l-4 border-slate-400 bg-slate-50 p-3"><div class="font-medium">ประกาศผลรายไตรมาส (ว 804)</div><div class="text-slate-500">ไตรมาส 4/2569 · 18 เรื่อง รอประกาศ</div></li>
+      </ul>`)}
+  </div>
+
+  <div class="mt-4">${card(`${h2('เรื่องล่าสุด', `<button onclick="go('register')" class="text-sm text-brand-600 hover:underline">ทะเบียนทั้งหมด</button>`)}
+    ${table(['เลขที่','เรื่อง','วงเงิน (บาท)','แหล่งเงิน','สถานะ'],
+      PROCS.slice(0,5).map(p=>[`<span class="font-medium text-brand-700">${p.no}</span>`, p.title, `<span class="tabular-nums">${fmt(p.amount)}</span>`, `<span class="text-slate-500">${p.fund}</span>`, badge(p.status)]),
+      i=>`onclick="go('detail')" style="cursor:pointer"`)}`)}</div>`;
+};
+
+PAGES.mytasks = () => {
+  const tasks = {
+    admin:[['ผู้ใช้ใหม่รอกำหนดบทบาท','2 คน','users'],['สำรองข้อมูลล่าสุด','เมื่อวาน 02:00 น. สำเร็จ','audit']],
+    supply:[['จัดทำรายงานขอซื้อ','พด.001/2570 วัสดุสำนักงาน','detail'],['กรอกเลขโครงการ e-GP','พด.061/2569 อุปกรณ์กีฬา','detail'],['ติดตามส่งของ','พด.062/2569 ครบกำหนด 15 ต.ค.','contract'],['จัดทำประกาศผลรายไตรมาส','ไตรมาส 4/2569','rpt-summary']],
+    teacher:[['ตรวจรับพัสดุ','พด.062/2569 วัสดุคอมพิวเตอร์','inspect'],['แก้ไขบันทึกขอซื้อ','พด.001/2570 พัสดุขอรายละเอียดเพิ่ม','request']],
+    director:[['เห็นชอบรายงานขอซื้อ','พด.061/2569 อุปกรณ์กีฬา ฿18,600','detail'],['ลงนามคำสั่งแต่งตั้งผู้ตรวจรับ','พด.061/2569','detail'],['อนุมัติจำหน่ายพัสดุชำรุด','12 รายการ','annual']],
+    finance:[['บันทึกเบิกจ่าย','พด.064/2569 ซ่อมหลังคา ฿186,000','detail'],['ตรวจเอกสารประกอบเบิก','ใบแจ้งหนี้ยังไม่แนบ','detail']],
+  }[role];
+  return card(`${h2('งานที่รอคุณดำเนินการ', `<span class="text-sm text-slate-500">${tasks.length} รายการ</span>`)}
+    <div class="divide-y divide-slate-100">${tasks.map(t=>`<button onclick="go('${t[2]}')" class="flex w-full items-center justify-between gap-3 py-3 text-left hover:bg-slate-50">
+      <div><div class="font-medium">${t[0]}</div><div class="text-sm text-slate-500">${t[1]}</div></div>
+      <span class="text-sm text-brand-600">เปิด →</span></button>`).join('')}</div>`);
+};
+
+PAGES.plan = () => card(`${h2('แผนการจัดซื้อจัดจ้าง ปีงบประมาณ 2570', btn('+ เพิ่มรายการในแผน'))}
+  <p class="mb-4 text-sm text-slate-500">ใช้เผยแพร่แผนในระบบ e-GP และเว็บไซต์โรงเรียน · ระบบเทียบแผนกับเรื่องที่จัดซื้อจริงให้อัตโนมัติ</p>
+  ${table(['ลำดับ','รายการ/โครงการ','วงเงิน (บาท)','แหล่งเงิน','ช่วงที่คาดว่าจะจัดหา','วิธี','สถานะ'],[
+    ['1','จัดซื้อหนังสือเรียน ปีการศึกษา 2570','312,000','เรียนฟรี 15 ปี','มี.ค. 2570','เฉพาะเจาะจง','<span class="text-slate-500">ตามแผน</span>'],
+    ['2','จ้างปรับปรุงห้องน้ำนักเรียน','280,000','งบลงทุน','ม.ค. 2570','เฉพาะเจาะจง','<span class="text-slate-500">ตามแผน</span>'],
+    ['3','จัดซื้อวัสดุสำนักงาน','90,000','เงินอุดหนุนรายหัว','ต.ค. 2569 – ก.ย. 2570','เฉพาะเจาะจง','<span class="text-emerald-600">เริ่มแล้ว 1 เรื่อง</span>'],
+    ['4','จัดซื้อวัสดุการเรียนการสอนกลุ่มสาระฯ','150,000','เงินอุดหนุนรายหัว','พ.ย. 2569','เฉพาะเจาะจง','<span class="text-slate-500">ตามแผน</span>'],
+  ])}`);
+
+PAGES.request = () => `
+  <div class="grid gap-4 xl:grid-cols-3">
+    <div class="space-y-4 xl:col-span-2">
+      ${card(`${h2('ข้อมูลการขอซื้อ/ขอจ้าง')}
+        <div class="grid gap-4 sm:grid-cols-2">
+          ${select('ประเภท',['ซื้อ','จ้าง','เช่า'])}
+          ${select('แหล่งเงิน', FUNDS.map(f=>f.name), 'id="fundSel" onchange="calcReq()"')}
+          <div class="sm:col-span-2">${input('เรื่อง','จัดซื้อวัสดุสำนักงาน ภาคเรียนที่ 2')}</div>
+          <div class="sm:col-span-2"><label class="block"><span class="mb-1 block text-sm text-slate-600">เหตุผลความจำเป็น</span><textarea rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">เพื่อใช้ในงานธุรการและการเรียนการสอน ภาคเรียนที่ 2/2569</textarea></label></div>
+          ${select('โครงการตามแผนปฏิบัติการ',['โครงการพัฒนางานบริหารทั่วไป','โครงการส่งเสริมการเรียนการสอน'])}
+          ${input('ต้องการใช้ภายในวันที่','2026-11-01','date')}
+        </div>`)}
+      ${card(`${h2('รายการพัสดุ', btnGhost('+ เพิ่มรายการ','onclick="addRow()"'))}
+        <div class="scroll-thin overflow-x-auto"><table class="w-full min-w-[620px] text-sm">
+          <thead><tr class="border-b text-left text-xs text-slate-500"><th class="py-2">รายการ/คุณลักษณะ</th><th class="w-20">จำนวน</th><th class="w-24">หน่วย</th><th class="w-32">ราคา/หน่วย</th><th class="w-32 text-right">รวม</th><th class="w-8"></th></tr></thead>
+          <tbody id="itemRows"></tbody>
+        </table></div>
+        <div class="mt-3 flex justify-end gap-6 border-t pt-3 text-sm"><span class="text-slate-500">รวมเป็นเงินทั้งสิ้น</span><span id="reqTotal" class="font-bold tabular-nums"></span></div>
+        <div id="reqText" class="mt-1 text-right text-xs text-slate-500"></div>`)}
+    </div>
+    <div class="space-y-4">
+      ${card(`${h2('ระบบตรวจให้อัตโนมัติ')}<div id="reqCheck" class="space-y-3 text-sm"></div>`)}
+      ${card(`${h2('ไฟล์แนบ')}<div class="rounded-lg border-2 border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">ลากไฟล์มาวาง หรือ <span class="text-brand-600">เลือกไฟล์</span><br><span class="text-xs">ใบเสนอราคา รูปภาพ สเปก (PDF, JPG ไม่เกิน 10 MB)</span></div>`)}
+      <div class="flex gap-2">${btnGhost('บันทึกร่าง',`onclick="toast('บันทึกร่างแล้ว')"`)}${btn('ส่งให้เจ้าหน้าที่พัสดุ','bg-brand-600 text-white hover:bg-brand-700',`onclick="toast('ส่งบันทึกขอซื้อแล้ว')"`)}</div>
+    </div>
+  </div>`;
+
+let reqItems = [['กระดาษ A4 80 แกรม',40,'รีม',125],['หมึกพิมพ์เลเซอร์ (ดำ)',6,'ตลับ',2350],['แฟ้มเอกสาร',50,'เล่ม',45]];
+function renderRows(){
+  const tb=document.getElementById('itemRows'); if(!tb) return;
+  tb.innerHTML = reqItems.map((r,i)=>`<tr class="border-b border-slate-100">
+    <td class="py-2 pr-2"><input class="w-full rounded border border-slate-300 px-2 py-1.5" value="${r[0]}" oninput="reqItems[${i}][0]=this.value"></td>
+    <td class="pr-2"><input type="number" min="0" class="w-full rounded border border-slate-300 px-2 py-1.5" value="${r[1]}" oninput="reqItems[${i}][1]=+this.value;calcReq()"></td>
+    <td class="pr-2"><input class="w-full rounded border border-slate-300 px-2 py-1.5" value="${r[2]}" oninput="reqItems[${i}][2]=this.value"></td>
+    <td class="pr-2"><input type="number" min="0" class="w-full rounded border border-slate-300 px-2 py-1.5" value="${r[3]}" oninput="reqItems[${i}][3]=+this.value;calcReq()"></td>
+    <td class="text-right tabular-nums" id="sub${i}">${fmt(r[1]*r[3])}</td>
+    <td class="text-center"><button class="text-slate-400 hover:text-red-500" onclick="reqItems.splice(${i},1);renderRows()" aria-label="ลบ">✕</button></td></tr>`).join('');
+  calcReq();
+}
+function addRow(){ reqItems.push(['',1,'',0]); renderRows(); }
+function calcReq(){
+  const total = reqItems.reduce((a,r)=>a+r[1]*r[3],0);
+  reqItems.forEach((r,i)=>{ const el=document.getElementById('sub'+i); if(el) el.textContent=fmt(r[1]*r[3]); });
+  const el=document.getElementById('reqTotal'); if(!el) return;
+  el.textContent = baht(total);
+  document.getElementById('reqText').textContent = '(' + bahtText(total) + ')';
+  const fsel=document.getElementById('fundSel'); const f = FUNDS.find(x=>x.name===fsel.value) || FUNDS[0];
+  const left=f.budget-f.used;
+  let method, note;
+  if(total<=50000){ method='วิธีเฉพาะเจาะจง · รายงานขอซื้อแบบย่อ'; note='ไม่เกิน 50,000 บาท (ตามเกณฑ์ ว 804 ที่ตั้งค่าไว้) · ผู้จัดซื้อตรวจรับเองได้ · ประกาศผลรายไตรมาส'; }
+  else if(total<=100000){ method='วิธีเฉพาะเจาะจง'; note='ไม่เกิน 100,000 บาท · แต่งตั้งผู้ตรวจรับ 1 คนได้ · ดำเนินการผ่าน e-GP'; }
+  else if(total<=500000){ method='วิธีเฉพาะเจาะจง'; note='เกิน 100,000 บาท · ต้องตั้งคณะกรรมการตรวจรับ · ดำเนินการผ่าน e-GP'; }
+  else { method='e-market / e-bidding'; note='เกิน 500,000 บาท · ดำเนินการในระบบ e-GP'; }
+  const ok = total<=left;
+  document.getElementById('reqCheck').innerHTML = `
+    <div class="rounded-lg bg-brand-50 p-3"><div class="text-xs text-slate-500">วิธีจัดหาที่ระบบแนะนำ</div><div class="font-semibold text-brand-700">${method}</div><div class="mt-1 text-xs text-slate-600">${note}</div></div>
+    <div class="rounded-lg ${ok?'bg-emerald-50':'bg-red-50'} p-3"><div class="text-xs text-slate-500">งบคงเหลือ: ${f.name}</div><div class="font-semibold ${ok?'text-emerald-700':'text-red-700'}">${baht(left)} ${ok?'· เพียงพอ':'· ไม่พอ'}</div></div>
+    <div class="rounded-lg bg-amber-50 p-3"><div class="text-xs text-slate-500">ตรวจการแบ่งซื้อ</div><div class="text-amber-700">พบการซื้อวัสดุสำนักงาน 1 ครั้งในรอบ 30 วัน (฿12,500) · รวมแล้วยังไม่เกินเกณฑ์</div></div>`;
+}
+
+PAGES.register = () => {
+  const rows = (role==='teacher' ? PROCS.filter(p=>p.req===ROLES.teacher.user) : PROCS);
+  return card(`
+  <div class="mb-4 flex flex-wrap items-end gap-3">
+    <div class="min-w-[220px] flex-1">${input('ค้นหา','', 'text','placeholder="เลขที่ เรื่อง ผู้ขาย"')}</div>
+    <div class="w-40">${select('ปีงบประมาณ',['2570','2569','2568'])}</div>
+    <div class="w-44">${select('สถานะ',['ทั้งหมด',...Object.values(STATUS).map(s=>s[0])])}</div>
+    <div class="w-56">${select('วิธี',['ทั้งหมด','เฉพาะเจาะจง (ไม่เกิน 50,000)','เฉพาะเจาะจง','คัดเลือก','e-market','e-bidding'])}</div>
+    ${btnGhost('ส่งออก Excel',`onclick="toast('ส่งออก Excel (ตัวอย่าง)')"`)}
+  </div>
+  ${role==='teacher'?'<p class="mb-3 rounded-lg bg-sky-50 p-2.5 text-sm text-sky-700">มุมมองครู: แสดงเฉพาะเรื่องที่คุณเป็นผู้ขอ หรือได้รับแต่งตั้งเป็นผู้ตรวจรับ</p>':''}
+  ${table(['เลขที่','วันที่','เรื่อง','ประเภท/วิธี','วงเงิน (บาท)','ผู้ขอ','เลข e-GP','สถานะ'],
+    rows.map(p=>[`<span class="font-medium text-brand-700">${p.no}</span>`, `<span class="whitespace-nowrap">${p.date}</span>`, p.title, `<span class="text-slate-500">${p.type} · ${p.method}</span>`, `<span class="tabular-nums">${fmt(p.amount)}</span>`, p.req, p.egp||'<span class="text-slate-400">–</span>', badge(p.status)]),
+    ()=>`onclick="go('detail')" style="cursor:pointer"`)}
+  <div class="mt-4 flex items-center justify-between text-sm text-slate-500"><span>แสดง ${rows.length} จาก 65 เรื่อง</span><div class="flex gap-1"><button class="rounded border px-3 py-1">ก่อนหน้า</button><button class="rounded border bg-brand-600 px-3 py-1 text-white">1</button><button class="rounded border px-3 py-1">2</button><button class="rounded border px-3 py-1">ถัดไป</button></div></div>`);
+};
+
+PAGES.detail = () => {
+  const p = PROCS[1]; const cur = FLOW.indexOf(p.status);
+  return `
+  <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div><div class="flex items-center gap-2"><span class="text-sm font-medium text-brand-700">${p.no}</span>${badge(p.status)}</div>
+    <h2 class="mt-1 text-xl font-semibold">${p.title}</h2>
+    <div class="text-sm text-slate-500">${p.type} · ${p.method} · ${p.fund} · เลขโครงการ e-GP ${p.egp}</div></div>
+    <div class="flex flex-wrap gap-2">${btnGhost('พิมพ์ชุดเอกสาร',`onclick="go('rpt-case')"`)}${role==='finance'||role==='admin'?btn('บันทึกเบิกจ่าย','bg-emerald-600 text-white hover:bg-emerald-700',`onclick="toast('ต้องแนบใบแจ้งหนี้ก่อน จึงบันทึกเบิกจ่ายได้')"`):''}</div>
+  </div>
+  ${card(`<div class="scroll-thin overflow-x-auto"><ol class="flex min-w-[860px] items-center">
+    ${FLOW.map((s,i)=>`<li class="flex flex-1 items-center">
+      <div class="flex flex-col items-center gap-1 text-center">
+        <span class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${i<cur?'bg-emerald-500 text-white':i===cur?'bg-brand-600 text-white ring-4 ring-brand-100':'bg-slate-100 text-slate-400'}">${i<cur?'✓':i+1}</span>
+        <span class="w-20 text-[11px] leading-tight ${i<=cur?'text-slate-700':'text-slate-400'}">${STATUS[s][0]}</span></div>
+      ${i<FLOW.length-1?`<div class="mx-1 mb-5 h-0.5 flex-1 ${i<cur?'bg-emerald-400':'bg-slate-200'}"></div>`:''}</li>`).join('')}
+  </ol></div>`,'mb-4')}
+  <div class="grid gap-4 xl:grid-cols-3">
+    <div class="xl:col-span-2">${card(`
+      <div class="mb-4 flex gap-1 overflow-x-auto border-b text-sm">
+        ${['ข้อมูลทั่วไป','รายการพัสดุ','ผู้เสนอราคา','กรรมการ','เอกสารแนบ','ประวัติ'].map((t,i)=>`<button class="tab-btn whitespace-nowrap border-b-2 border-transparent px-3 py-2 ${i===0?'active':''}" onclick="showTab(${i})">${t}</button>`).join('')}
+      </div>
+      <div class="tab-pane">
+        <dl class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+          ${[['ผู้ขอ',p.req],['วันที่ขอ',p.date],['วงเงินงบประมาณ',baht(p.amount)],['ราคากลาง',baht(186000)],['ราคาที่ตกลง',baht(186000)+' <span class="text-xs text-slate-500">('+bahtText(186000)+')</span>'],['ผู้รับจ้าง','หจก. ช่างไทยการช่าง'],['ใบสั่งจ้างเลขที่','2/2569 ลว. 15 ก.ย. 2569'],['กำหนดแล้วเสร็จ','30 ก.ย. 2569 (ส่งงานตรงเวลา)'],['เหตุผลความจำเป็น','หลังคารั่วซึมช่วงฤดูฝน กระทบการเรียนการสอน 2 ห้อง']].map(r=>`<div><dt class="text-slate-500">${r[0]}</dt><dd class="font-medium">${r[1]}</dd></div>`).join('')}
+        </dl></div>
+      <div class="tab-pane hidden">${table(['รายการ','จำนวน','หน่วย','ราคา/หน่วย','รวม'],[['ซ่อมแซมหลังคาอาคารเรียน 2 (ค่าวัสดุและค่าแรง) ตามแบบรูปรายการ','1','งาน','186,000','186,000']])}</div>
+      <div class="tab-pane hidden">${table(['ผู้เสนอราคา','เลขผู้เสียภาษี','ราคาที่เสนอ','ผล'],[['หจก. ช่างไทยการช่าง','0-1234-56789-01-2','186,000','<span class="font-medium text-emerald-600">ได้รับคัดเลือก</span>']])}<p class="mt-2 text-xs text-slate-500">เหตุผลการคัดเลือก: ใช้เกณฑ์ราคา และคุณสมบัติตรงตามที่กำหนด</p></div>
+      <div class="tab-pane hidden">${table(['หน้าที่','ชื่อ','ตำแหน่ง','คำสั่งที่'],[['ผู้กำหนดรายละเอียด/ราคากลาง','นายประเสริฐ ทองดี','ครู','45/2569'],['ประธานกรรมการตรวจรับ','นายกิตติ แสงทอง','ครูชำนาญการ','46/2569'],['กรรมการตรวจรับ','นางวิไลวรรณ ศรีสุข','ครู','46/2569'],['กรรมการตรวจรับ','นายอนุชา พรมมา','ครูผู้ช่วย','46/2569']])}</div>
+      <div class="tab-pane hidden"><ul class="divide-y divide-slate-100 text-sm">
+        ${[['บันทึกขอจ้าง',1],['รายงานขอจ้าง + เห็นชอบ',1],['คำสั่งแต่งตั้ง',1],['ราคากลาง/ประมาณราคา',1],['ใบเสนอราคา',1],['รายงานผลและประกาศผู้ชนะ (จาก e-GP)',1],['ใบสั่งจ้าง',1],['ใบส่งมอบงาน',1],['ใบตรวจรับ',1],['ใบแจ้งหนี้/ใบกำกับภาษี',0],['รูปถ่ายก่อน-หลังซ่อม',1]].map(d=>`<li class="flex items-center justify-between py-2.5">
+          <span class="flex items-center gap-2">${d[1]?'<span class="text-emerald-500">●</span>':'<span class="text-red-500">●</span>'}${d[0]}</span>
+          <span class="flex gap-3 text-xs">${d[1]?'<button class="text-brand-600 hover:underline">ดูไฟล์</button><button class="text-slate-500 hover:underline">พิมพ์</button>':'<button class="font-medium text-red-600 hover:underline">อัปโหลด (จำเป็นก่อนเบิกจ่าย)</button>'}</span></li>`).join('')}
+      </ul></div>
+      <div class="tab-pane hidden"><ol class="relative ml-2 space-y-4 border-l border-slate-200 pl-5 text-sm">
+        ${[['ตรวจรับแล้ว','คณะกรรมการตรวจรับ 3 คน','1 ต.ค. 2569 10:12'],['ส่งของแล้ว','นางสาวพิมพ์ชนก แก้วดี','30 ก.ย. 2569 15:40'],['สั่งจ้างแล้ว','นายสมชาย รักเรียน (ผอ.)','15 ก.ย. 2569 09:05'],['ประกาศผู้ชนะ','นางสาวพิมพ์ชนก แก้วดี','12 ก.ย. 2569 14:20'],['ผอ. เห็นชอบ','นายสมชาย รักเรียน','5 ก.ย. 2569 11:30'],['ส่งขอจ้างแล้ว','นายประเสริฐ ทองดี','2 ก.ย. 2569 08:45']].map(h=>`<li><span class="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full bg-brand-500"></span><div class="font-medium">${h[0]}</div><div class="text-slate-500">${h[1]} · ${h[2]}</div></li>`).join('')}
+      </ol></div>`)}</div>
+    <div class="space-y-4">
+      ${card(`${h2('ความครบถ้วนของเอกสาร')}<div class="mb-2 flex justify-between text-sm"><span>10 / 11 ฉบับ</span><span class="text-amber-600">ขาด 1</span></div><div class="h-2 rounded-full bg-slate-100"><div class="h-2 w-[91%] rounded-full bg-amber-500"></div></div><p class="mt-3 text-sm text-slate-500">ขั้นถัดไป "เบิกจ่าย" จะเปิดเมื่อแนบใบแจ้งหนี้/ใบกำกับภาษีแล้ว</p>`)}
+      ${card(`${h2('ผลต่องบประมาณ')}<div class="text-sm"><div class="flex justify-between"><span class="text-slate-500">งบลงทุน (ปรับปรุงซ่อมแซม)</span><span>${baht(500000)}</span></div><div class="flex justify-between"><span class="text-slate-500">เรื่องนี้</span><span>− ${baht(186000)}</span></div><div class="mt-2 flex justify-between border-t pt-2 font-semibold"><span>คงเหลือ</span><span class="text-emerald-600">${baht(314000)}</span></div></div>`)}
+    </div>
+  </div>`;
+};
+function showTab(i){ document.querySelectorAll('.tab-btn').forEach((b,j)=>b.classList.toggle('active',i===j)); document.querySelectorAll('.tab-pane').forEach((p,j)=>p.classList.toggle('hidden',i!==j)); }
+
+PAGES.inspect = () => card(`${h2('เรื่องที่รอตรวจรับ')}
+  <div class="grid gap-4 lg:grid-cols-2">
+    ${[[PROCS[3],'15 ต.ค. 2569','ผู้ตรวจรับ: นางวิไลวรรณ ศรีสุข (คนเดียว · ไม่เกิน 100,000)'],[{no:'พด.065/2569',title:'จัดซื้อวัสดุวิทยาศาสตร์',amount:27650},'20 ต.ค. 2569','ผู้จัดซื้อตรวจรับเอง (ไม่เกิน 50,000 · ว 804)']].map(x=>`
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="flex justify-between"><span class="font-medium text-brand-700">${x[0].no}</span><span class="text-sm text-amber-600">ครบกำหนด ${x[1]}</span></div>
+      <div class="mt-1 font-medium">${x[0].title}</div><div class="text-sm text-slate-500">${baht(x[0].amount)} · ${x[2]}</div>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">${input('วันที่ส่งมอบ','2026-10-12','date')}${select('ผลการตรวจรับ',['ถูกต้องครบถ้วน','ไม่ถูกต้อง แจ้งแก้ไข','รับไว้บางส่วน'])}</div>
+      <div class="mt-3 flex gap-2">${btnGhost('แนบรูป/ใบส่งของ')}${btn('บันทึกผลตรวจรับ','bg-emerald-600 text-white hover:bg-emerald-700',`onclick="toast('บันทึกผลตรวจรับแล้ว')"`)}</div>
+    </div>`).join('')}
+  </div>`);
+
+PAGES.contract = () => card(`${h2('ใบสั่งซื้อ/สั่งจ้าง สัญญา และหลักประกัน')}
+  ${table(['เลขที่','เรื่อง','คู่สัญญา','มูลค่า (บาท)','กำหนดส่ง','ค่าปรับ/วัน','สถานะ'],[
+    ['ใบสั่งซื้อ 14/2569','วัสดุคอมพิวเตอร์','ร้านไอทีพลัส','32,400','15 ต.ค. 2569','0.20% (64.80 บาท)','<span class="text-amber-600">เหลือ 3 วัน</span>'],
+    ['ใบสั่งจ้าง 2/2569','ซ่อมแซมหลังคาอาคารเรียน 2','หจก. ช่างไทยการช่าง','186,000','30 ก.ย. 2569','0.10% (186 บาท)','<span class="text-emerald-600">ส่งตรงเวลา</span>'],
+    ['ใบสั่งซื้อ 13/2569','หนังสือเรียน ภาคเรียนที่ 2','บริษัท สื่อการเรียน จำกัด','298,500','10 ก.ย. 2569','0.20% (597 บาท)','<span class="text-red-600">ล่าช้า 2 วัน · ปรับ 1,194 บาท</span>'],
+  ])}
+  <p class="mt-3 text-xs text-slate-500">อัตราค่าปรับเป็นตัวอย่าง ระบบคำนวณตามอัตราที่ระบุในใบสั่งหรือสัญญาแต่ละฉบับ</p>`);
+
+PAGES.funds = () => card(`${h2('แหล่งเงิน ปีงบประมาณ 2569', btn('+ เพิ่มแหล่งเงิน'))}
+  ${table(['แหล่งเงิน','ได้รับจัดสรร','ใช้ไป/ผูกพัน','คงเหลือ','ร้อยละที่ใช้'], FUNDS.map(f=>[f.name, fmt(f.budget), fmt(f.used), `<span class="font-medium">${fmt(f.budget-f.used)}</span>`,
+    `<div class="flex items-center gap-2"><div class="h-2 w-28 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-brand-500" style="width:${(f.used/f.budget*100).toFixed(1)}%"></div></div><span class="text-xs">${(f.used/f.budget*100).toFixed(1)}%</span></div>`]))}`);
+
+PAGES.commit = () => card(`${h2('รายการกันเงิน/ผูกพันงบ')}
+  ${table(['เรื่อง','แหล่งเงิน','จำนวนที่กัน','เบิกจ่ายแล้ว','คงค้าง','สถานะ'],[
+    ['พด.062/2569 วัสดุคอมพิวเตอร์','เงินอุดหนุนรายหัว','32,400','0','32,400','<span class="text-amber-600">รอตรวจรับ</span>'],
+    ['พด.064/2569 ซ่อมหลังคา','งบลงทุน','186,000','0','186,000','<span class="text-amber-600">รอเบิกจ่าย</span>'],
+    ['พด.061/2569 อุปกรณ์กีฬา','เงินอุดหนุนรายหัว','18,600','0','18,600','<span class="text-slate-500">รอจัดหา</span>'],
+  ])}`);
+
+PAGES.vendors = () => card(`${h2('ทะเบียนผู้ขาย/ผู้รับจ้าง', btn('+ เพิ่มผู้ขาย'))}
+  ${table(['ชื่อ','เลขผู้เสียภาษี','VAT','โทรศัพท์','จำนวนครั้ง (ปีนี้)','ยอดรวม (บาท)'],[
+    ['หจก. ช่างไทยการช่าง','0-1234-xxxxx-01-2','จดทะเบียน','08x-xxx-1234','1','186,000'],
+    ['บริษัท สื่อการเรียน จำกัด','0-1055-xxxxx-22-1','จดทะเบียน','02-xxx-5678','2','452,300'],
+    ['ร้านไอทีพลัส','3-1601-xxxxx-45-6','ไม่จด','08x-xxx-9876','4','96,200'],
+    ['ร้านรุ่งเรืองเครื่องเขียน','3-1699-xxxxx-11-0','ไม่จด','08x-xxx-4455','6','58,740'],
+  ])}<p class="mt-3 text-xs text-slate-500">เลขผู้เสียภาษีและเลขบัญชีแสดงแบบปิดบางส่วน ดูเต็มได้เฉพาะผู้มีสิทธิ์</p>`);
+
+PAGES.assets = () => card(`${h2('ทะเบียนครุภัณฑ์', `<div class="flex gap-2">${btnGhost('พิมพ์ QR Code')}${role==='teacher'?'':btn('+ ลงทะเบียน')}</div>`)}
+  ${table(['เลขครุภัณฑ์','รายการ','ได้มาจาก','วันที่ได้มา','ราคา (บาท)','ที่ตั้ง/ผู้รับผิดชอบ','สภาพ'],[
+    ['ครภ.012/2569','เครื่องพิมพ์เลเซอร์','พด.041/2569','12 พ.ค. 2569','8,900','ห้องธุรการ / นางสาวพิมพ์ชนก','<span class="text-emerald-600">ใช้งานได้</span>'],
+    ['ครภ.011/2569','โปรเจกเตอร์','พด.038/2569','2 พ.ค. 2569','18,500','ห้อง ม.2 / นายกิตติ','<span class="text-emerald-600">ใช้งานได้</span>'],
+    ['ครภ.004/2565','เครื่องคอมพิวเตอร์','โอนจาก สพป.','1 มิ.ย. 2565','22,000','ห้องคอม / นายอนุชา','<span class="text-amber-600">ชำรุด</span>'],
+  ])}<p class="mt-3 text-xs text-slate-500">รูปแบบเลขครุภัณฑ์ตั้งค่าได้ตามที่โรงเรียนใช้อยู่ · คำนวณค่าเสื่อมราคารายปีอัตโนมัติ</p>`);
+
+PAGES.stock = () => card(`${h2('วัสดุคงคลัง', btn(role==='teacher'?'+ ขอเบิกวัสดุ':'+ รับเข้าวัสดุ'))}
+  ${table(['รายการ','หน่วย','คงเหลือ','จุดสั่งซื้อ','เบิกเดือนนี้','สถานะ'],[
+    ['กระดาษ A4 80 แกรม','รีม','12','20','28','<span class="text-red-600">ต่ำกว่าจุดสั่งซื้อ</span>'],
+    ['หมึกพิมพ์เลเซอร์ (ดำ)','ตลับ','3','2','1','<span class="text-emerald-600">ปกติ</span>'],
+    ['ปากกาไวท์บอร์ด','ด้าม','48','24','16','<span class="text-emerald-600">ปกติ</span>'],
+  ])}`);
+
+PAGES.annual = () => card(`${h2('ตรวจสอบพัสดุประจำปี 2569')}
+  <div class="grid gap-4 sm:grid-cols-3">
+    ${card('<div class="text-sm text-slate-500">ครุภัณฑ์ทั้งหมด</div><div class="text-2xl font-bold">214</div>')}
+    ${card('<div class="text-sm text-slate-500">ตรวจนับแล้ว</div><div class="text-2xl font-bold text-brand-700">168</div><div class="text-xs text-slate-500">สแกน QR จากมือถือ</div>')}
+    ${card('<div class="text-sm text-slate-500">ชำรุด/เสื่อมสภาพ เสนอจำหน่าย</div><div class="text-2xl font-bold text-amber-600">12</div>')}
+  </div>
+  <div class="mt-4 flex flex-wrap gap-2">${btnGhost('คำสั่งแต่งตั้งคณะกรรมการตรวจสอบ')}${btnGhost('รายงานผลการตรวจสอบ')}${btn('ขออนุมัติจำหน่าย')}</div>`);
+
+PAGES['rpt-summary'] = () => `
+  ${card(`<div class="flex flex-wrap items-end gap-3">
+    <div class="w-64">${select('รายงาน',['สรุปผลการจัดซื้อจัดจ้างรายเดือน (สขร.1)','ประกาศผลรายไตรมาส (ไม่เกิน 50,000)','สรุปผลการจัดซื้อจัดจ้างประจำปี','ทะเบียนคุมการจัดซื้อจัดจ้าง'])}</div>
+    <div class="w-36">${select('ปีงบประมาณ',['2569','2570'])}</div>
+    <div class="w-36">${select('เดือน',MONTHS)}</div>
+    ${btnGhost('ส่งออก Excel',`onclick="toast('ส่งออก Excel (ตัวอย่าง)')"`)}${btn('พิมพ์ PDF','bg-brand-600 text-white hover:bg-brand-700',`onclick="toast('สร้าง PDF (ตัวอย่าง)')"`)}
+  </div>`,'mb-4')}
+  ${card(`<div class="mb-4 text-center"><div class="font-semibold">สรุปผลการดำเนินการจัดซื้อจัดจ้างในรอบเดือน กันยายน 2569</div><div class="text-sm text-slate-500">โรงเรียนชุมชนวัดไทยงาม</div></div>
+  ${table(['ที่','งานที่จัดซื้อ/จ้าง','วงเงิน','ราคากลาง','วิธี','ผู้เสนอราคาและราคา','ผู้ได้รับคัดเลือกและราคา','เหตุผลที่คัดเลือก','เลขที่และวันที่ของสัญญา'],[
+    ['1','จ้างซ่อมแซมหลังคาอาคารเรียน 2','186,000','186,000','เฉพาะเจาะจง','หจก. ช่างไทยการช่าง 186,000','หจก. ช่างไทยการช่าง 186,000','ใช้เกณฑ์ราคา','ใบสั่งจ้าง 2/2569 ลว. 15 ก.ย. 2569'],
+    ['2','จัดซื้อวัสดุวิทยาศาสตร์','27,650','27,650','เฉพาะเจาะจง','ร้านวิทยาภัณฑ์ 27,650','ร้านวิทยาภัณฑ์ 27,650','ใช้เกณฑ์ราคา','ใบสั่งซื้อ 15/2569 ลว. 22 ก.ย. 2569'],
+  ])}`)}`;
+
+PAGES['rpt-case'] = () => card(`${h2('พิมพ์เอกสารรายเรื่อง')}
+  <div class="mb-4 max-w-md">${select('เลือกเรื่อง', PROCS.map(p=>p.no+' '+p.title))}</div>
+  <div class="grid gap-2 sm:grid-cols-2">
+    ${['บันทึกขอซื้อ/ขอจ้าง','รายงานขอซื้อ/ขอจ้าง','คำสั่งแต่งตั้งผู้กำหนดรายละเอียด','คำสั่งแต่งตั้งผู้ตรวจรับ/คณะกรรมการ','รายงานผลการพิจารณาและขออนุมัติสั่งซื้อ','ประกาศผู้ชนะการเสนอราคา','ใบสั่งซื้อ/ใบสั่งจ้าง','ใบตรวจรับพัสดุ','บันทึกขออนุมัติเบิกจ่ายเงิน'].map(d=>`<label class="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-sm hover:bg-slate-50"><input type="checkbox" checked class="h-4 w-4 accent-brand-600">${d}</label>`).join('')}
+  </div>
+  <div class="mt-4 flex gap-2">${btnGhost('ดูตัวอย่าง')}${btn('พิมพ์ชุดเอกสาร (PDF)','bg-brand-600 text-white hover:bg-brand-700',`onclick="toast('รวมเอกสาร 9 ฉบับเป็น PDF (ตัวอย่าง)')"`)}</div>`);
+
+PAGES['rpt-analytics'] = () => {
+  const methods=[['เฉพาะเจาะจง ไม่เกิน 50,000',49,'bg-brand-500'],['เฉพาะเจาะจง 50,001–500,000',15,'bg-indigo-500']];
+  return `<div class="grid gap-4 xl:grid-cols-2">
+  ${card(`${h2('จำนวนเรื่องตามวิธีจัดหา')}${methods.map(m=>`<div class="mb-3"><div class="mb-1 flex justify-between text-sm"><span>${m[0]}</span><span>${m[1]} เรื่อง</span></div><div class="h-3 rounded-full bg-slate-100"><div class="h-3 rounded-full ${m[2]}" style="width:${m[1]/64*100}%"></div></div></div>`).join('')}`)}
+  ${card(`${h2('ผู้ขายที่มียอดสูงสุด 5 อันดับ')}${table(['ผู้ขาย','ครั้ง','ยอดรวม (บาท)'],[['บริษัท สื่อการเรียน จำกัด','2','452,300'],['หจก. ช่างไทยการช่าง','1','186,000'],['ร้านไอทีพลัส','4','96,200'],['ร้านรุ่งเรืองเครื่องเขียน','6','58,740'],['ร้านวิทยาภัณฑ์','2','41,350']])}`)}
+  ${card(`${h2('ใช้จ่ายตามหมวดพัสดุ')}${table(['หมวด','ยอด (บาท)','สัดส่วน'],[['วัสดุการศึกษา/หนังสือ','438,000','27.2%'],['ค่าจ้างเหมาบริการ','376,840','23.4%'],['งานซ่อมแซม','186,000','11.5%'],['วัสดุสำนักงาน','154,200','9.6%'],['อื่น ๆ','457,300','28.4%']])}`,'xl:col-span-2')}
+  </div>`;
+};
+
+PAGES.users = () => card(`${h2('ผู้ใช้และบทบาท', btn('+ เพิ่มผู้ใช้'))}
+  ${table(['ชื่อ','อีเมล','บทบาท','สถานะ','เข้าใช้ล่าสุด'],[
+    ['นายธนพล ใจงาม','thanapon@school.example','<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-white">Admin</span>','ใช้งาน','วันนี้ 20:15'],
+    ['นางสาวพิมพ์ชนก แก้วดี','pimchanok@school.example','<span class="rounded bg-brand-100 px-2 py-0.5 text-xs text-brand-700">เจ้าหน้าที่พัสดุ</span> <span class="rounded bg-slate-100 px-2 py-0.5 text-xs">ครู</span>','ใช้งาน','วันนี้ 16:02'],
+    ['นายสมชาย รักเรียน','somchai@school.example','<span class="rounded bg-violet-100 px-2 py-0.5 text-xs text-violet-700">ผู้อำนวยการ</span>','ใช้งาน','เมื่อวาน'],
+    ['นางสุนิสา มั่นคง','sunisa@school.example','<span class="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">การเงิน</span> <span class="rounded bg-slate-100 px-2 py-0.5 text-xs">ครู</span>','ใช้งาน','3 วันก่อน'],
+    ['นางวิไลวรรณ ศรีสุข','wilaiwan@school.example','<span class="rounded bg-slate-100 px-2 py-0.5 text-xs">ครู</span>','ใช้งาน','วันนี้ 09:40'],
+  ])}<p class="mt-3 text-xs text-slate-500">หนึ่งคนถือได้หลายบทบาท · ระบบเตือนเมื่อผู้จัดทำกับผู้อนุมัติเป็นคนเดียวกัน</p>`);
+
+PAGES.school = () => card(`${h2('ข้อมูลโรงเรียนและผู้ลงนาม')}
+  <div class="grid max-w-3xl gap-4 sm:grid-cols-2">
+    <div class="sm:col-span-2">${input('ชื่อสถานศึกษา','โรงเรียนชุมชนวัดไทยงาม')}</div>
+    ${input('สังกัด','')}${input('ที่ตั้ง','')}
+    ${input('ผู้อำนวยการ (ผู้ลงนาม)','นายสมชาย รักเรียน')}${input('หัวหน้าเจ้าหน้าที่พัสดุ','')}
+    ${input('เจ้าหน้าที่พัสดุ','นางสาวพิมพ์ชนก แก้วดี')}${input('ปีงบประมาณปัจจุบัน','2570')}
+    <div class="sm:col-span-2 rounded-lg border-2 border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">อัปโหลดตราโรงเรียน (ใช้ในหัวเอกสาร)</div>
+  </div><div class="mt-4">${btn('บันทึก',undefined,`onclick="toast('บันทึกแล้ว')"`)}</div>`);
+
+PAGES.thresholds = () => card(`${h2('เกณฑ์วงเงินและข้ออ้างอิงระเบียบ')}
+  <p class="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">ค่าทั้งหมดแก้ได้โดยไม่ต้องแก้โค้ด เมื่อกรมบัญชีกลางออกหนังสือเวียนใหม่ ให้เพิ่มแถวพร้อมวันที่มีผล ระบบจะใช้เกณฑ์ตามวันที่ของเรื่อง</p>
+  ${table(['เกณฑ์','วงเงิน (บาท)','อ้างอิง','มีผลตั้งแต่',''],[
+    ['รายงานขอซื้อแบบย่อ / ผู้จัดซื้อตรวจรับเอง',`<input class="w-28 rounded border px-2 py-1" value="50,000">`,'ว 804 ลว. 12 พ.ย. 2568','1 ธ.ค. 2568','<button class="text-brand-600">แก้ไข</button>'],
+    ['แต่งตั้งผู้ตรวจรับ 1 คนได้',`<input class="w-28 rounded border px-2 py-1" value="100,000">`,'กฎกระทรวงกำหนดวงเงินฯ 2560 ข้อ 5','23 ส.ค. 2560','<button class="text-brand-600">แก้ไข</button>'],
+    ['วิธีเฉพาะเจาะจง มาตรา 56 (2)(ข)',`<input class="w-28 rounded border px-2 py-1" value="500,000">`,'กฎกระทรวงกำหนดวงเงินฯ 2560 ข้อ 1','23 ส.ค. 2560','<button class="text-brand-600">แก้ไข</button>'],
+    ['ยื่นข้อเสนอผ่าน e-GP (คัดเลือก/เฉพาะเจาะจง)','ตามประเภท','ว 714, ว 715 ลว. 16 ก.ย. 2569','1 ต.ค. 2569','<button class="text-brand-600">แก้ไข</button>'],
+  ])}`);
+
+PAGES.templates = () => card(`${h2('แม่แบบเอกสารและเลขที่เอกสาร')}
+  ${table(['เอกสาร','รูปแบบเลขที่','เลขถัดไป','แม่แบบ',''],[
+    ['เลขเรื่องจัดซื้อจัดจ้าง','พด.{ลำดับ:3}/{ปีงบ}','พด.002/2570','–','<button class="text-brand-600">แก้ไข</button>'],
+    ['คำสั่งโรงเรียน','{ลำดับ}/{ปีงบ}','1/2570','คำสั่งแต่งตั้งผู้ตรวจรับ','<button class="text-brand-600">แก้ไข</button>'],
+    ['ใบสั่งซื้อ','{ลำดับ}/{ปีงบ}','1/2570','ใบสั่งซื้อ','<button class="text-brand-600">แก้ไข</button>'],
+    ['ใบสั่งจ้าง','{ลำดับ}/{ปีงบ}','1/2570','ใบสั่งจ้าง','<button class="text-brand-600">แก้ไข</button>'],
+  ])}<p class="mt-3 text-xs text-slate-500">เลขเริ่มนับใหม่ทุกปีงบประมาณ (1 ต.ค.) โดยอัตโนมัติ</p>`);
+
+PAGES.audit = () => card(`${h2('บันทึกการใช้งาน (Audit log)', btnGhost('ส่งออก'))}
+  ${table(['เวลา','ผู้ใช้','การกระทำ','รายการ','รายละเอียด'],[
+    ['12 ต.ค. 2569 20:14','นายธนพล ใจงาม','แก้ไขเกณฑ์','เกณฑ์วงเงิน','เพิ่มเกณฑ์ ว 714 มีผล 1 ต.ค. 2569'],
+    ['12 ต.ค. 2569 16:02','นางสาวพิมพ์ชนก แก้วดี','อัปโหลดไฟล์','พด.064/2569','ใบส่งมอบงาน.pdf'],
+    ['8 ต.ค. 2569 09:31','นางวิไลวรรณ ศรีสุข','สร้างเรื่อง','พด.001/2570','วงเงิน 24,800 บาท'],
+    ['1 ต.ค. 2569 10:12','นายกิตติ แสงทอง','เปลี่ยนสถานะ','พด.064/2569','ส่งของแล้ว → ตรวจรับแล้ว'],
+  ])}`);
+
+// ---------- router ----------
+const TITLES = { detail:'รายละเอียดเรื่อง' };
+MENU.forEach(g=>g.items.forEach(it=>TITLES[it.id]=it.label));
+const GROUP_OF = { detail:'งานจัดซื้อจัดจ้าง' };
+MENU.forEach(g=>g.items.forEach(it=>GROUP_OF[it.id]=g.group));
+
+function allowed(id){ if(id==='detail') return true; for(const g of MENU) for(const it of g.items) if(it.id===id) return it.roles.includes(role); return false; }
+
+function renderNav(current){
+  document.getElementById('nav').innerHTML = MENU.map(g=>{
+    const items = g.items.filter(it=>it.roles.includes(role));
+    if(!items.length) return '';
+    return `<div class="mb-4"><div class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">${g.group}</div>
+      ${items.map(it=>`<a href="#${it.id}" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 ${current===it.id||(current==='detail'&&it.id==='register')?'active':''}">
+        <span class="text-slate-400">${icon(it.icon)}</span><span class="flex-1">${it.label}</span>${it.badge?`<span class="rounded-full bg-red-500 px-1.5 text-xs text-white">${it.badge}</span>`:''}</a>`).join('')}</div>`;
+  }).join('');
+}
+
+function render(){
+  let id = location.hash.slice(1) || 'dashboard';
+  if(!PAGES[id] || !allowed(id)) id = 'dashboard';
+  renderNav(id);
+  document.getElementById('pageTitle').textContent = TITLES[id];
+  document.getElementById('crumb').textContent = GROUP_OF[id] + ' / ' + TITLES[id];
+  document.getElementById('page').innerHTML = PAGES[id]();
+  document.getElementById('userName').textContent = ROLES[role].user;
+  document.getElementById('userRole').textContent = ROLES[role].label;
+  document.getElementById('avatar').textContent = ROLES[role].user.replace(/^(นาย|นางสาว|นาง)/,'').slice(0,1);
+  if(id==='request') renderRows();
+  closeMenu();
+  window.scrollTo(0,0);
+}
+function go(id){ if(location.hash==='#'+id) render(); else location.hash = id; }
+
+const sidebar=document.getElementById('sidebar'), overlay=document.getElementById('overlay');
+function closeMenu(){ sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); }
+document.getElementById('menuBtn').onclick=()=>{ sidebar.classList.remove('-translate-x-full'); overlay.classList.remove('hidden'); };
+overlay.onclick=closeMenu;
+document.getElementById('roleSelect').onchange=e=>{ role=e.target.value; render(); toast('สลับเป็น: '+ROLES[role].label); };
+window.addEventListener('hashchange', render);
+render();
+</script>
+</body>
+</html>
